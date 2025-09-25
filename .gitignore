@@ -1,0 +1,24 @@
+# IDE-specific files
+.idea/
+
+# CMake generated files and directories
+cmake-build-*/
+_deps/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dll
+*.exe
+AllIn1
+AllIn1.exe
+
+# Other
+*.cbp
+*.depend
+*.layout
