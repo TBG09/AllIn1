@@ -1,39 +1,80 @@
 #include <iostream>
-#include <argparse/argparse.hpp>
+#include <string_view>
+#include <vector>
+#include "cppParse/parser.hpp"
+#include "cppParse/help_formatter.hpp"
 #include "io/io.hpp"
+#include "io/version.hpp"
+#include "common/platform.hpp"
+#include "io/create.hpp"
+#include "io/shortcut.hpp"
+#include "io/symlink.hpp"
+
+constexpr std::string_view app_version = "0.1.0a";
 
 int main(int argc, char *argv[]) {
-    argparse::ArgumentParser program("AllIn1");
+    cppParse::Parser program("AllIn1-alpha", app_version.data());
+    program.add_description("A collection of command-line tools.");
+    program.add_argument(std::vector<std::string>{"-v", "--version"}).store_true().help("shows version information and exits");
+    program.add_argument(std::vector<std::string>{"--output"}).store_true().help("Enable output messages");
 
-    program.add_argument("--output")
-        .help("Enable output messages")
-        .default_value(false)
-        .implicit_value(true);
+    auto& io_parser = program.add_subparser("io");
+    io_parser.add_description("Perform I/O operations.");
 
-    // Create a subcommand for 'io' and register its commands
-    argparse::ArgumentParser io_command("io");
-    register_io_commands(io_command);
-    program.add_subparser(io_command);
+    allin1::io::register_io_commands(io_parser);
 
     try {
         program.parse_args(argc, argv);
-    }
-    catch (const std::runtime_error& err) {
-        std::cerr << err.what() << std::endl;
-        std::cerr << program;
+    } catch (const std::exception& err) {
+        std::cerr << "Error: " << err.what() << std::endl;
         return 1;
     }
 
-    auto output_enabled = program.get<bool>("--output");
+    if (program.get<bool>("version")) {
+        std::cout << "AllIn1 version " << app_version << std::endl;
+        std::cout << "  - allin1_io version " << allin1::io::version << std::endl;
+        return 0;
+    }
 
-    if (program.is_subcommand_used(io_command)) {
-        if (io_command.is_subcommand_used("create")) {
-            handle_io_create(io_command.at<argparse::ArgumentParser>("create"), output_enabled);
+    if (program.is_subcommand_used("io")) {
+        auto& used_io_parser = program.get_subparser("io");
+        if (used_io_parser.is_subcommand_used("create")) {
+            auto& used_create_parser = used_io_parser.get_subparser("create");
+
+            bool output_enabled = program.get<bool>("output");
+            std::string type = used_create_parser.get<std::string>("type");
+            std::string path = used_create_parser.get<std::string>("path");
+            std::string name = used_create_parser.get<std::string>("name");
+            std::string fill = used_create_parser.get<std::string>("fill");
+            std::string fill_size = used_create_parser.get<std::string>("fill-size");
+
+            allin1::io::handle_create(type, path, name, fill, fill_size, output_enabled);
+        } else if (used_io_parser.is_subcommand_used("symlink")) {
+            auto& used_symlink_parser = used_io_parser.get_subparser("symlink");
+
+            bool output_enabled = program.get<bool>("output");
+            std::string target_path = used_symlink_parser.get<std::string>("target_path");
+            std::string link_path = used_symlink_parser.get<std::string>("link_path");
+            bool is_directory = used_symlink_parser.get<bool>("directory");
+
+            allin1::io::handle_symlink(target_path, link_path, is_directory, output_enabled);
+        } else if (used_io_parser.is_subcommand_used("shortcut")) {
+            auto& used_shortcut_parser = used_io_parser.get_subparser("shortcut");
+
+            bool output_enabled = program.get<bool>("output");
+            std::string target_path = used_shortcut_parser.get<std::string>("target_path");
+            std::string link_path = used_shortcut_parser.get<std::string>("link_path");
+            std::string description = used_shortcut_parser.get<std::string>("description");
+
+            allin1::io::handle_shortcut(target_path, link_path, description, output_enabled);
+        } else {
+            cppParse::HelpFormatter formatter(used_io_parser);
+            std::cout << formatter.format();
         }
-    } else if (!output_enabled) {
-        // No command used, and output is disabled, do nothing.
     } else {
-        std::cout << "Welcome to AllIn1. Use --help to see commands." << std::endl;
+        if (argc == 1) {
+            std::cout << "Welcome to AllIn1. Use --help to see available commands." << std::endl;
+        }
     }
 
     return 0;

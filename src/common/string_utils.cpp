@@ -3,11 +3,13 @@
 #include <stdexcept>
 #include <cctype>
 
+namespace allin1::common {
+
 // Parses a size string (e.g., "1K", "2M", "3G") and returns the size in bytes.
 // Throws a StringSizeParseError if the format is invalid.
 uint64_t parse_size(const std::string& size_str) {
     if (size_str.empty()) {
-        throw StringSizeParseError("Size string cannot be empty.");
+        throw allin1::common::StringSizeParseError("Size string cannot be empty.");
     }
 
     char last_char = static_cast<char>(std::toupper(size_str.back()));
@@ -30,7 +32,7 @@ uint64_t parse_size(const std::string& size_str) {
                 multiplier = 1024 * 1024 * 1024;
                 break;
             default:
-                throw StringSizeParseError("Invalid size suffix: " + std::string(1, last_char));
+                throw allin1::common::StringSizeParseError("Invalid size suffix: " + std::string(1, last_char));
         }
     }
 
@@ -44,9 +46,9 @@ uint64_t parse_size(const std::string& size_str) {
         }
         return base_size * multiplier;
     } catch (const std::invalid_argument&) {
-        throw StringSizeParseError("Invalid number format in size string: \"" + num_part + "\"");
+        throw allin1::common::StringSizeParseError("Invalid number format in size string: \"" + num_part + "\"");
     } catch (const std::out_of_range&) {
-        throw StringSizeParseError("Size value out of range: \"" + num_part + "\"");
+        throw allin1::common::StringSizeParseError("Size value out of range: \"" + num_part + "\"");
     }
 }
 
@@ -54,7 +56,7 @@ uint64_t parse_size(const std::string& size_str) {
 // Throws a HexByteParseError if the format is invalid.
 unsigned char parse_hex_byte(const std::string& hex_str) {
     if (hex_str.empty()) {
-        throw HexByteParseError("Fill hex string cannot be empty.");
+        throw allin1::common::HexByteParseError("Fill hex string cannot be empty.");
     }
     // Allow "0x" prefix
     std::string processed_str = hex_str;
@@ -62,13 +64,15 @@ unsigned char parse_hex_byte(const std::string& hex_str) {
         processed_str = hex_str.substr(2);
     }
     if (processed_str.length() > 2 || processed_str.empty()) {
-        throw HexByteParseError("Invalid hex byte format: \"" + hex_str + "\". Must be 1 or 2 hex characters.");
+        throw allin1::common::HexByteParseError("Invalid hex byte format: \"" + hex_str + "\". Must be 1 or 2 hex characters.");
     }
     try {
         return static_cast<unsigned char>(std::stoul(processed_str, nullptr, 16));
     } catch (const std::invalid_argument&) {
-        throw HexByteParseError("Invalid hex character in fill string: \"" + hex_str + "\"");
+        throw allin1::common::HexByteParseError("Invalid hex character in fill string: \"" + hex_str + "\"");
     } catch (const std::out_of_range&) {
-        throw HexByteParseError("Hex value out of range for a byte: \"" + hex_str + "\"");
+        throw allin1::common::HexByteParseError("Hex value out of range for a byte: \"" + hex_str + "\"");
     }
 }
+
+} // namespace allin1::common

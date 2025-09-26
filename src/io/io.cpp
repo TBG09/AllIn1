@@ -1,102 +1,33 @@
 #include "io/io.hpp"
-#include "common/string_utils.hpp"
-#include "common/errors.hpp"
-
-#include <iostream>
-#include <filesystem>
-#include <fstream>
-#include <stdexcept>
+#include "io/create.hpp"
+#include "io/symlink.hpp"
+#include "io/shortcut.hpp"
 #include <vector>
-#include <string>
 
-void register_io_commands(argparse::ArgumentParser& parser) {
-    auto& create = parser.add_subparser("create", "Create a file or directory");
-    create.add_argument("type", "The type of object to create (file, directory, folder)");
-    create.add_argument("path", "The path where the object should be created");
+// Temporary comment to force recompile
 
-    create.add_argument("--fill")
-        .help("Fill the file with a certain hex code (e.g., 0xFF)")
-        .default_value(std::string(""))
-        .required(false);
+namespace allin1::io {
 
-    create.add_argument("--fill-size")
-        .help("The size to initialize the file to (e.g., 1K, 2M, 3G)")
-        .default_value(std::string(""))
-        .required(false);
+void register_io_commands(cppParse::Parser& io_parser) {
+    auto& create_parser = io_parser.add_subparser("create");
+    create_parser.add_description("Create a file or directory.");
+    create_parser.add_argument(std::vector<std::string>{"type"}).help("The type of object to create (file, directory, folder)").required();
+    create_parser.add_argument(std::vector<std::string>{"path"}).help("The directory where the object should be created").required();
+    create_parser.add_argument(std::vector<std::string>{"name"}).help("The name of the file or directory to create").required();
+    create_parser.add_argument(std::vector<std::string>{"--fill"}).takes_value().help("Fill the file with a certain hex code (e.g., 0xFF)");
+    create_parser.add_argument(std::vector<std::string>{"--fill-size"}).takes_value().help("The size to initialize the file to (e.g., 1K, 2M, 3G)");
+
+    auto& symlink_parser = io_parser.add_subparser("symlink");
+    symlink_parser.add_description("Create a symbolic link.");
+    symlink_parser.add_argument(std::vector<std::string>{"target_path"}).help("The original file or directory to link to.").required();
+    symlink_parser.add_argument(std::vector<std::string>{"link_path"}).help("The path where the symlink will be created.").required();
+    symlink_parser.add_argument(std::vector<std::string>{"--directory"}).store_true().help("Specify if the target is a directory (Windows only).");
+
+    auto& shortcut_parser = io_parser.add_subparser("shortcut");
+    shortcut_parser.add_description("Create a platform-specific shortcut.");
+    shortcut_parser.add_argument(std::vector<std::string>{"target_path"}).help("The original file or directory to link to.").required();
+    shortcut_parser.add_argument(std::vector<std::string>{"link_path"}).help("The path where the shortcut will be created.").required();
+    shortcut_parser.add_argument(std::vector<std::string>{"--description"}).takes_value().help("A description for the shortcut.");
 }
 
-void handle_io_create(const argparse::ArgumentParser& create_command, bool output_enabled) {
-    try {
-        auto type = create_command.get<std::string>("type");
-        auto path_str = create_command.get<std::string>("path");
-        auto fill_str = create_command.get<std::string>("--fill");
-        auto fill_size_str = create_command.get<std::string>("--fill-size");
-
-        if (output_enabled) {
-            std::cout << "Settings for io create:" << std::endl;
-            std::cout << "  Type: " << type << std::endl;
-            std::cout << "  Path: " << path_str << std::endl;
-            if (!fill_str.empty()) std::cout << "  Fill: " << fill_str << std::endl;
-            if (!fill_size_str.empty()) std::cout << "  Fill Size: " << fill_size_str << std::endl;
-        }
-
-        std::filesystem::path path(path_str);
-
-        // Argument validation
-        bool use_fill = !fill_str.empty();
-        bool use_fill_size = !fill_size_str.empty();
-
-        if (use_fill != use_fill_size) {
-            throw std::runtime_error("--fill and --fill-size must be used together.");
-        }
-
-        if ((type == "directory") || (type == "folder")) {
-            if (use_fill) {
-                throw std::runtime_error("--fill and --fill-size can only be used with type 'file'.");
-            }
-            std::filesystem::create_directories(path);
-            if (output_enabled) {
-                std::cout << "Directory created: " << path << std::endl;
-            }
-        } else if (type == "file") {
-            if (path.has_parent_path()) {
-                std::filesystem::create_directories(path.parent_path());
-            }
-
-            std::ofstream file(path, std::ios::binary | std::ios::out);
-            if (!file) {
-                throw std::runtime_error("Failed to create file: " + path_str);
-            }
-
-            if (use_fill) {
-                uint64_t size_bytes = parse_size(fill_size_str);
-                unsigned char fill_byte = parse_hex_byte(fill_str);
-
-                const size_t buffer_size = 4096;
-                std::vector<char> buffer(buffer_size, static_cast<char>(fill_byte));
-                
-                uint64_t remaining_bytes = size_bytes;
-                while (remaining_bytes > 0) {
-                    size_t bytes_to_write = std::min((uint64_t)buffer_size, remaining_bytes);
-                    file.write(buffer.data(), bytes_to_write);
-                    if (!file) {
-                        throw std::runtime_error("Failed to write to file: " + path_str);
-                    }
-                    remaining_bytes -= bytes_to_write;
-                }
-            }
-            if (output_enabled) {
-                std::cout << "File created: " << path << std::endl;
-            }
-        } else {
-            throw std::runtime_error("Invalid type: \"" + type + "\". Must be 'file', 'directory', or 'folder'.");
-        }
-
-    } catch (const StringSizeParseError& e) {
-        std::cerr << "Error parsing size argument: " << e.what() << std::endl;
-    } catch (const HexByteParseError& e) {
-        std::cerr << "Error parsing fill argument: " << e.what() << std::endl;
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-    }
-}
+} // namespace allin1::io
