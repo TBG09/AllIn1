@@ -285,7 +285,7 @@ int get_cpu_core_count() {
     std::ifstream cpuinfo("/proc/cpuinfo");
     if (cpuinfo.is_open()) {
         int cores = 0;
-        std.string line;
+        std::string line;
         while (std::getline(cpuinfo, line)) {
             if (line.rfind("cpu cores\t:", 0) == 0) {
                 cores = std::stoi(trim_and_unquote(line.substr(line.find(":") + 1)));
