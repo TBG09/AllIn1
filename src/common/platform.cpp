@@ -12,6 +12,7 @@
 #elif defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__sun)
 #include <sys/utsname.h>
 #include <unistd.h>
+#include <limits.h>
 #endif
 
 namespace allin1::common {
@@ -284,7 +285,7 @@ int get_cpu_core_count() {
     std::ifstream cpuinfo("/proc/cpuinfo");
     if (cpuinfo.is_open()) {
         int cores = 0;
-        std::string line;
+        std.string line;
         while (std::getline(cpuinfo, line)) {
             if (line.rfind("cpu cores\t:", 0) == 0) {
                 cores = std::stoi(trim_and_unquote(line.substr(line.find(":") + 1)));

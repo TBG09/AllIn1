@@ -40,12 +40,18 @@ Permissions parse_permission_string(const std::string& perm_string) {
         if (pos != perm_string.length()) throw std::invalid_argument("Invalid chars");
 
         Permissions perms;
-        if (perm_string.rfind("0x", 0) == 0) { // Hex (Windows)
+        if (perm_string.rfind("0x", 0) == 0) { // Hex format
+#ifdef _WIN32
+            // Windows-specific permission flags
             if ((value & GENERIC_ALL) == GENERIC_ALL || (value & 0x1f01ff) == 0x1f01ff) return {true, true, true};
             perms.read = (value & GENERIC_READ) == GENERIC_READ;
             perms.write = (value & GENERIC_WRITE) == GENERIC_WRITE;
             perms.execute = (value & GENERIC_EXECUTE) == GENERIC_EXECUTE;
-        } else { // Octal (Linux)
+#else
+            // Hex format is not supported for permissions on non-Windows platforms
+            throw PermissionError("Hex permission strings are not supported on this platform.");
+#endif
+        } else { // Octal format
             perms.read = (value & 4) != 0;
             perms.write = (value & 2) != 0;
             perms.execute = (value & 1) != 0;
@@ -105,8 +111,23 @@ void set_single_win_permission(const std::string& path, const std::string& user,
 }
 #else
 void set_single_linux_permission(const std::string& path, const std::string& user, const Permissions& perms, bool output_enabled) {
-    struct passwd *pw = getpwnam(user.c_str());
-    if (!pw) throw PermissionError("User '" + user + "' not found.");
+    struct passwd *pw = nullptr;
+    bool is_numeric = !user.empty() && std::all_of(user.begin(), user.end(), ::isdigit);
+
+    if (is_numeric) {
+        try {
+            uid_t uid = static_cast<uid_t>(std::stoul(user));
+            pw = getpwuid(uid);
+        } catch (const std::exception&) {
+            pw = nullptr; // Treat conversion errors as 'user not found'
+        }
+    } else {
+        pw = getpwnam(user.c_str());
+    }
+
+    if (!pw) {
+        throw PermissionError("User '" + user + "' not found.");
+    }
 
     uid_t uid = pw->pw_uid;
     gid_t gid = pw->pw_gid;
