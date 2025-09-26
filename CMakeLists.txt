@@ -8,6 +8,9 @@ add_subdirectory(cppParse)
 add_library(allin1_common STATIC
     src/common/string_utils.cpp
     src/common/platform.cpp
+    src/common/error_utils.cpp
+    src/common/permission_utils.cpp
+    src/common/errors.cpp
 )
 set_target_properties(allin1_common PROPERTIES PREFIX "")
 target_include_directories(allin1_common PUBLIC include)
@@ -17,6 +20,7 @@ add_library(allin1_io STATIC
     src/io/create.cpp
     src/io/symlink.cpp
     src/io/shortcut.cpp
+    src/io/permission.cpp
 )
 set_target_properties(allin1_io PROPERTIES PREFIX "")
 target_include_directories(allin1_io PUBLIC include cppParse/include)

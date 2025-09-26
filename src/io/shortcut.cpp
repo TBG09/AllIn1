@@ -1,11 +1,13 @@
 #include "io/shortcut.hpp"
 #include "common/platform.hpp"
+#include "common/error_utils.hpp"
+#include "common/errors.hpp"
 
 #include <iostream>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
-#include <vector> // Added for std::vector
+#include <vector>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -34,62 +36,72 @@ void handle_shortcut(
     try {
 #if defined(_WIN32)
         HRESULT hres;
-        IShellLink* psl;
+        IShellLink* psl = nullptr;
+        IPersistFile* ppf = nullptr;
 
         hres = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
         if (FAILED(hres)) {
-            throw std::runtime_error("Failed to initialize COM library.");
+            throw common::IOCreateError("Failed to initialize COM library. Code: " + std::to_string(hres) + ": " + common::get_system_error_message(hres));
         }
 
         hres = CoCreateInstance(CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, IID_IShellLink, (LPVOID*)&psl);
         if (FAILED(hres)) {
             CoUninitialize();
-            throw std::runtime_error("Failed to create IShellLink instance.");
+            throw common::IOCreateError("Failed to create IShellLink instance. Code: " + std::to_string(hres) + ": " + common::get_system_error_message(hres));
         }
 
-        // Set the path to the shortcut target
         hres = psl->SetPath(target_path_str.c_str());
         if (FAILED(hres)) {
             psl->Release();
             CoUninitialize();
-            throw std::runtime_error("Failed to set shortcut target path.");
+            throw common::IOCreateError("Failed to set shortcut target path. Code: " + std::to_string(hres) + ": " + common::get_system_error_message(hres));
         }
 
-        // Set the description (comments) of the shortcut
         if (!description.empty()) {
             hres = psl->SetDescription(description.c_str());
             if (FAILED(hres)) {
                 psl->Release();
                 CoUninitialize();
-                throw std::runtime_error("Failed to set shortcut description.");
+                throw common::IOCreateError("Failed to set shortcut description. Code: " + std::to_string(hres) + ": " + common::get_system_error_message(hres));
             }
         }
 
-        // Resolve the link path to a wide character string for IPersistFile
         int wchars_num = MultiByteToWideChar(CP_UTF8, 0, link_path_str.c_str(), -1, NULL, 0);
         if (wchars_num == 0) {
+            unsigned long error_code = GetLastError();
             psl->Release();
             CoUninitialize();
-            throw std::runtime_error("Failed to convert link path to wide char (size check).");
+            std::string sys_msg = common::get_system_error_message(error_code);
+            std::string ctx_msg = common::get_contextual_error_message(error_code);
+            std::string final_msg = "Failed to convert link path to wide char. Code: " + std::to_string(error_code) + ": " + sys_msg;
+            if (!ctx_msg.empty()) {
+                final_msg += ". Suggestion: " + ctx_msg;
+            }
+            throw common::IOCreateError(final_msg);
         }
         std::vector<wchar_t> w_link_path(wchars_num);
         MultiByteToWideChar(CP_UTF8, 0, link_path_str.c_str(), -1, w_link_path.data(), wchars_num);
 
-        // Save the shortcut
-        IPersistFile* ppf;
         hres = psl->QueryInterface(IID_IPersistFile, (LPVOID*)&ppf);
         if (FAILED(hres)) {
             psl->Release();
             CoUninitialize();
-            throw std::runtime_error("Failed to query IPersistFile interface.");
+            throw common::IOCreateError("Failed to query IPersistFile interface. Code: " + std::to_string(hres) + ": " + common::get_system_error_message(hres));
         }
 
         hres = ppf->Save(w_link_path.data(), TRUE);
         if (FAILED(hres)) {
+            unsigned long error_code = hres;
             ppf->Release();
             psl->Release();
             CoUninitialize();
-            throw std::runtime_error("Failed to save shortcut file.");
+            std::string sys_msg = common::get_system_error_message(error_code);
+            std::string ctx_msg = common::get_contextual_error_message(error_code);
+            std::string final_msg = "Failed to save shortcut file. Code: " + std::to_string(error_code) + ": " + sys_msg;
+            if (!ctx_msg.empty()) {
+                final_msg += ". Suggestion: " + ctx_msg;
+            }
+            throw common::IOCreateError(final_msg);
         }
 
         ppf->Release();
@@ -103,42 +115,52 @@ void handle_shortcut(
         std::filesystem::path link_path(link_path_str);
         std::filesystem::path target_path(target_path_str);
 
-        // Ensure the directory for the shortcut exists
         if (link_path.has_parent_path()) {
-            std::filesystem::create_directories(link_path.parent_path());
+            std::error_code ec;
+            std::filesystem::create_directories(link_path.parent_path(), ec);
+            if (ec) {
+                throw common::IOCreateError("Failed to create parent directories for shortcut: " + ec.message());
+            }
         }
 
         std::ofstream desktop_file(link_path.string() + ".desktop");
         if (!desktop_file.is_open()) {
-            throw std::runtime_error("Failed to create .desktop file: " + link_path.string() + ".desktop");
+            throw common::IOCreateError("Failed to create .desktop file: " + link_path.string() + ".desktop");
         }
 
-        desktop_file << "[Desktop Entry]\n";
-        desktop_file << "Type=Application\n";
-        desktop_file << "Name=" << link_path.stem().string() << "\n";
-        desktop_file << "Exec=" << target_path.string() << "\n";
+        desktop_file << "[Desktop Entry]\\n";
+        desktop_file << "Type=Application\\n";
+        desktop_file << "Name=" << link_path.stem().string() << "\\n";
+        desktop_file << "Exec=" << target_path.string() << "\\n";
         if (!description.empty()) {
-            desktop_file << "Comment=" << description << "\n";
+            desktop_file << "Comment=" << description << "\\n";
         }
-        desktop_file << "Terminal=false\n";
-        desktop_file << "Categories=Utility;\n";
+        desktop_file << "Terminal=false\\n";
+        desktop_file << "Categories=Utility;\\n";
         desktop_file.close();
 
-        // Make the .desktop file executable
+        std::error_code ec;
         std::filesystem::permissions(link_path.string() + ".desktop",
                                       std::filesystem::perms::owner_exec |
                                       std::filesystem::perms::group_exec |
                                       std::filesystem::perms::others_exec,
-                                      std::filesystem::perm_options::add);
+                                      std::filesystem::perm_options::add, ec);
+        if (ec) {
+            throw common::IOCreateError("Failed to set executable permissions on .desktop file: " + ec.message());
+        }
 
         if (output_enabled) {
             std::cout << "Linux .desktop shortcut created: " << link_path.string() << ".desktop -> " << target_path_str << std::endl;
         }
 #else
-        throw std::runtime_error("Shortcut creation not supported on this OS.");
+        throw common::IOCreateError("Shortcut creation not supported on this OS.");
 #endif
+    } catch (const common::IOCreateError&) {
+        throw; // Re-throw to be caught in main
+    } catch (const std::filesystem::filesystem_error& e) {
+        throw common::IOCreateError("A filesystem error occurred: " + std::string(e.what()));
     } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        throw common::IOCreateError("An unexpected error occurred: " + std::string(e.what()));
     }
 }
 

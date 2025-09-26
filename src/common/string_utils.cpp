@@ -1,4 +1,5 @@
 #include "common/string_utils.hpp"
+#include "common/error_utils.hpp"
 #include "common/errors.hpp"
 #include <stdexcept>
 #include <cctype>
@@ -50,6 +51,7 @@ uint64_t parse_size(const std::string& size_str) {
     } catch (const std::out_of_range&) {
         throw allin1::common::StringSizeParseError("Size value out of range: \"" + num_part + "\"");
     }
+    throw allin1::common::StringSizeParseError("Internal error in parse_size: should not be reachable.");
 }
 
 // Parses a hex string (e.g., "0xFF", "FF") and returns the corresponding byte value.
@@ -73,6 +75,7 @@ unsigned char parse_hex_byte(const std::string& hex_str) {
     } catch (const std::out_of_range&) {
         throw allin1::common::HexByteParseError("Hex value out of range for a byte: \"" + hex_str + "\"");
     }
+    throw allin1::common::HexByteParseError("Internal error in parse_hex_byte: should not be reachable.");
 }
 
 } // namespace allin1::common

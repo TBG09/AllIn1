@@ -9,6 +9,7 @@
 #include "io/create.hpp"
 #include "io/shortcut.hpp"
 #include "io/symlink.hpp"
+#include "io/permission.hpp"
 
 constexpr std::string_view app_version = "0.1.0a";
 
@@ -67,6 +68,16 @@ int main(int argc, char *argv[]) {
             std::string description = used_shortcut_parser.get<std::string>("description");
 
             allin1::io::handle_shortcut(target_path, link_path, description, output_enabled);
+        } else if (used_io_parser.is_subcommand_used("permission")) {
+            auto& used_permission_parser = used_io_parser.get_subparser("permission");
+
+            bool output_enabled = program.get<bool>("output");
+            std::string path = used_permission_parser.get<std::string>("path");
+            std::string user = used_permission_parser.get<std::string>("user");
+            std::string permissions = used_permission_parser.get<std::string>("permissions");
+            bool recursive = used_permission_parser.get<bool>("recursive");
+
+            allin1::io::handle_permission(path, user, permissions, recursive, output_enabled);
         } else {
             cppParse::HelpFormatter formatter(used_io_parser);
             std::cout << formatter.format();

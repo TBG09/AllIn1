@@ -2,9 +2,8 @@
 #include "io/create.hpp"
 #include "io/symlink.hpp"
 #include "io/shortcut.hpp"
+#include "io/permission.hpp"
 #include <vector>
-
-// Temporary comment to force recompile
 
 namespace allin1::io {
 
@@ -28,6 +27,13 @@ void register_io_commands(cppParse::Parser& io_parser) {
     shortcut_parser.add_argument(std::vector<std::string>{"target_path"}).help("The original file or directory to link to.").required();
     shortcut_parser.add_argument(std::vector<std::string>{"link_path"}).help("The path where the shortcut will be created.").required();
     shortcut_parser.add_argument(std::vector<std::string>{"--description"}).takes_value().help("A description for the shortcut.");
+
+    auto& permission_parser = io_parser.add_subparser("permission");
+    permission_parser.add_description("Set permissions for a user on a file or directory.");
+    permission_parser.add_argument(std::vector<std::string>{"path"}).help("The path to the file or directory.").required();
+    permission_parser.add_argument(std::vector<std::string>{"--user"}).takes_value().help("The user to apply permissions for.").required();
+    permission_parser.add_argument(std::vector<std::string>{"--permissions"}).takes_value().help("Permissions to set (e.g., full, 755, 0x1F01FF).").required();
+    permission_parser.add_argument(std::vector<std::string>{"--recursive"}).store_true().help("Apply permissions recursively to subdirectories.");
 }
 
 } // namespace allin1::io

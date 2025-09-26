@@ -1,5 +1,7 @@
 #include "io/symlink.hpp"
 #include "common/platform.hpp"
+#include "common/error_utils.hpp"
+#include "common/errors.hpp"
 
 #include <iostream>
 #include <filesystem>
@@ -31,7 +33,9 @@ void handle_symlink(
 #if defined(_WIN32)
         DWORD flags = is_directory ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
         if (!CreateSymbolicLinkW(link_path.c_str(), target_path.c_str(), flags)) {
-            throw std::runtime_error("Failed to create symlink on Windows. Error code: " + std::to_string(GetLastError()));
+            unsigned long error_code = GetLastError();
+            std::string error_message = common::get_system_error_message(error_code);
+            throw common::IOCreateError("Failed to create symlink on Windows. Code: " + std::to_string(error_code) + ": " + error_message);
         }
 #else
         if (is_directory) {
@@ -44,9 +48,11 @@ void handle_symlink(
             std::cout << "Symlink created: " << link_path_str << " -> " << target_path_str << std::endl;
         }
     } catch (const std::filesystem::filesystem_error& e) {
-        std::cerr << "Error creating symlink: " << e.what() << std::endl;
+        throw common::IOCreateError("Failed to create symlink: " + std::string(e.what()));
+    } catch (const common::IOCreateError&) {
+        throw; // Re-throw IOCreateError to be caught in main
     } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        throw common::IOCreateError("An unexpected error occurred: " + std::string(e.what()));
     }
 }
 
